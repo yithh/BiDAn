@@ -46,71 +46,83 @@ with st.sidebar:
     sel = st.multiselect("Bulan data", avail, default=avail, help="Bulan baru ditambahkan di tab Kelola Data.") if avail else []
     st.caption(f"{len(avail)} bulan tersimpan di folder data/")
 
+import os
+def _public():
+    """Mode publik: dinyalakan lewat variabel lingkungan DASHBOARD_PUBLIC=1 atau Secrets Streamlit (public_mode = true)."""
+    if os.environ.get("DASHBOARD_PUBLIC", "").lower() in ("1", "true", "yes"): return True
+    try: return bool(st.secrets.get("public_mode", False))
+    except Exception: return False
+PUBLIC = _public()
+
 tab_names = ["Ringkasan", "Pola waktu", "Zona", "Prediksi", "Keputusan bisnis", "Graph", "Kelola data"]
 t_sum, t_time, t_zone, t_pred, t_dec, t_graph, t_data = st.tabs(tab_names)
 
 # ------------------------------------------------------------ kelola data
 with t_data:
-    st.subheader("Tambah data TLC")
-    st.write("Pilih salah satu cara. Setiap bulan dibersihkan dengan aturan R1–R7 lalu diringkas, "
-             "jadi file mentah (40–70 MB per bulan) tidak disimpan.")
-    mode = st.radio("Sumber", ["Unduh dari TLC (tahun dan bulan)", "Unggah file parquet", "Path file di komputer"], horizontal=True)
-    if mode.startswith("Unduh"):
-        c1, c2, c3 = st.columns([1, 3, 1])
-        year = c1.selectbox("Tahun", list(range(2026, 2016, -1)), index=1)
-        mm = c2.multiselect("Bulan", list(range(1, 13)), default=[1], format_func=lambda m: f"{m:02d}")
-        over = c3.checkbox("Timpa jika ada")
-        if st.button("Tambah ke data", type="primary", disabled=not mm):
-            for m in mm:
-                k = P.month_key(year, m)
-                if k in avail and not over: st.info(f"{k} sudah ada, dilewati."); continue
-                bar = st.progress(0.0, text=f"{k}: mengunduh...")
-                try:
-                    meta = P.add_month_from_tlc(year, m, lambda x: bar.progress(x * .5, text=f"{k}: mengunduh..."),
-                                                lambda x: bar.progress(.5 + x * .5, text=f"{k}: membersihkan dan meringkas..."))
-                    bar.progress(1.0, text=f"{k}: selesai, {fmt(meta['clean_rows'])} trip bersih")
-                except Exception as e:
-                    bar.empty(); st.error(f"{k}: {e}")
-            st.cache_data.clear()
-            st.success("Selesai. Muat ulang halaman (tekan R) untuk melihat bulan baru di semua tab.")
-    elif mode.startswith("Unggah"):
-        up = st.file_uploader("File parquet yellow_tripdata_YYYY-MM.parquet", type="parquet")
-        gy, gm = P.guess_year_month(up.name if up else "")
-        c1, c2 = st.columns(2)
-        y = c1.number_input("Tahun", 2017, 2026, gy or 2025); m = c2.number_input("Bulan", 1, 12, gm or 1)
-        if up and st.button("Proses file", type="primary"):
-            with tempfile.NamedTemporaryFile(suffix=".parquet") as f:
-                f.write(up.getbuffer()); f.flush(); bar = st.progress(0.0, text="Memproses...")
-                try:
-                    meta = P.process_parquet(f.name, y, m, lambda x: bar.progress(x), up.name)
-                    st.cache_data.clear(); st.success(f"Selesai: {fmt(meta['clean_rows'])} trip bersih. Muat ulang halaman (tekan R).")
-                except Exception as e: st.error(str(e))
-    else:
-        path = st.text_input("Path file parquet", placeholder=r"C:\data\yellow_tripdata_2024-03.parquet")
-        gy, gm = P.guess_year_month(path)
-        c1, c2 = st.columns(2)
-        y = c1.number_input("Tahun", 2017, 2026, gy or 2025, key="py"); m = c2.number_input("Bulan", 1, 12, gm or 1, key="pm")
-        if path and st.button("Proses file", type="primary", key="pp"):
-            if not Path(path).exists(): st.error("File tidak ditemukan.")
-            else:
-                bar = st.progress(0.0, text="Memproses...")
-                try:
-                    meta = P.process_parquet(path, y, m, lambda x: bar.progress(x))
-                    st.cache_data.clear(); st.success(f"Selesai: {fmt(meta['clean_rows'])} trip bersih. Muat ulang halaman (tekan R).")
-                except Exception as e: st.error(str(e))
-    st.divider(); st.subheader("Data cuaca (opsional)")
-    st.write("Unggah CSV dari IEM ASOS (stasiun NYC). Waktu UTC otomatis diubah ke waktu New York. Dipakai di tab Prediksi.")
-    wf_up = st.file_uploader("CSV cuaca IEM", type="csv", key="wx")
-    if wf_up and st.button("Tambah cuaca"):
-        try: st.success(f"Tersimpan: {fmt(P.add_weather(wf_up))} jam cuaca."); st.cache_data.clear()
-        except Exception as e: st.error(f"Format tidak dikenali: {e}")
+    if PUBLIC:
+        st.info("Mode publik: menambah dan menghapus data dimatikan agar dasbor tetap utuh. Untuk menambah data TLC, jalankan dasbor di komputermu sendiri dengan streamlit run app.py.")
+    if not PUBLIC:
+        st.subheader("Tambah data TLC")
+        st.write("Pilih salah satu cara. Setiap bulan dibersihkan dengan aturan R1–R7 lalu diringkas, "
+                 "jadi file mentah (40–70 MB per bulan) tidak disimpan.")
+        mode = st.radio("Sumber", ["Unduh dari TLC (tahun dan bulan)", "Unggah file parquet", "Path file di komputer"], horizontal=True)
+        if mode.startswith("Unduh"):
+            c1, c2, c3 = st.columns([1, 3, 1])
+            year = c1.selectbox("Tahun", list(range(2026, 2016, -1)), index=1)
+            mm = c2.multiselect("Bulan", list(range(1, 13)), default=[1], format_func=lambda m: f"{m:02d}")
+            over = c3.checkbox("Timpa jika ada")
+            if st.button("Tambah ke data", type="primary", disabled=not mm):
+                for m in mm:
+                    k = P.month_key(year, m)
+                    if k in avail and not over: st.info(f"{k} sudah ada, dilewati."); continue
+                    bar = st.progress(0.0, text=f"{k}: mengunduh...")
+                    try:
+                        meta = P.add_month_from_tlc(year, m, lambda x: bar.progress(x * .5, text=f"{k}: mengunduh..."),
+                                                    lambda x: bar.progress(.5 + x * .5, text=f"{k}: membersihkan dan meringkas..."))
+                        bar.progress(1.0, text=f"{k}: selesai, {fmt(meta['clean_rows'])} trip bersih")
+                    except Exception as e:
+                        bar.empty(); st.error(f"{k}: {e}")
+                st.cache_data.clear()
+                st.success("Selesai. Muat ulang halaman (tekan R) untuk melihat bulan baru di semua tab.")
+        elif mode.startswith("Unggah"):
+            up = st.file_uploader("File parquet yellow_tripdata_YYYY-MM.parquet", type="parquet")
+            gy, gm = P.guess_year_month(up.name if up else "")
+            c1, c2 = st.columns(2)
+            y = c1.number_input("Tahun", 2017, 2026, gy or 2025); m = c2.number_input("Bulan", 1, 12, gm or 1)
+            if up and st.button("Proses file", type="primary"):
+                with tempfile.NamedTemporaryFile(suffix=".parquet") as f:
+                    f.write(up.getbuffer()); f.flush(); bar = st.progress(0.0, text="Memproses...")
+                    try:
+                        meta = P.process_parquet(f.name, y, m, lambda x: bar.progress(x), up.name)
+                        st.cache_data.clear(); st.success(f"Selesai: {fmt(meta['clean_rows'])} trip bersih. Muat ulang halaman (tekan R).")
+                    except Exception as e: st.error(str(e))
+        else:
+            path = st.text_input("Path file parquet", placeholder=r"C:\data\yellow_tripdata_2024-03.parquet")
+            gy, gm = P.guess_year_month(path)
+            c1, c2 = st.columns(2)
+            y = c1.number_input("Tahun", 2017, 2026, gy or 2025, key="py"); m = c2.number_input("Bulan", 1, 12, gm or 1, key="pm")
+            if path and st.button("Proses file", type="primary", key="pp"):
+                if not Path(path).exists(): st.error("File tidak ditemukan.")
+                else:
+                    bar = st.progress(0.0, text="Memproses...")
+                    try:
+                        meta = P.process_parquet(path, y, m, lambda x: bar.progress(x))
+                        st.cache_data.clear(); st.success(f"Selesai: {fmt(meta['clean_rows'])} trip bersih. Muat ulang halaman (tekan R).")
+                    except Exception as e: st.error(str(e))
+        st.divider(); st.subheader("Data cuaca (opsional)")
+        st.write("Unggah CSV dari IEM ASOS (stasiun NYC). Waktu UTC otomatis diubah ke waktu New York. Dipakai di tab Prediksi.")
+        wf_up = st.file_uploader("CSV cuaca IEM", type="csv", key="wx")
+        if wf_up and st.button("Tambah cuaca"):
+            try: st.success(f"Tersimpan: {fmt(P.add_weather(wf_up))} jam cuaca."); st.cache_data.clear()
+            except Exception as e: st.error(f"Format tidak dikenali: {e}")
     st.divider(); st.subheader("Data tersimpan")
     if len(months):
         show = months[["key", "raw_rows", "clean_rows", "dibuang_pct", "source"]].rename(columns={
             "key": "Bulan", "raw_rows": "Baris mentah", "clean_rows": "Trip bersih", "dibuang_pct": "Dibuang (%)", "source": "Sumber"})
         st.dataframe(show.style.format({"Baris mentah": fmt, "Trip bersih": fmt, "Dibuang (%)": "{:.2f}"}), use_container_width=True, hide_index=True)
-        c1, c2 = st.columns([2, 1]); dk = c1.selectbox("Hapus bulan", avail)
-        if c2.button("Hapus"): P.delete_month(dk); st.cache_data.clear(); st.rerun()
+        if not PUBLIC:
+            c1, c2 = st.columns([2, 1]); dk = c1.selectbox("Hapus bulan", avail)
+            if c2.button("Hapus"): P.delete_month(dk); st.cache_data.clear(); st.rerun()
         with st.expander("Baris yang dibuang per aturan"):
             r = pd.DataFrame([{"Bulan": r.key, **r.rules} for r in months.itertuples()]).set_index("Bulan"); st.dataframe(r)
     else: st.warning("Belum ada data. Tambahkan bulan di atas.")
