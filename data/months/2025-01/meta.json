@@ -1,0 +1,16 @@
+{
+ "year": 2025,
+ "month": 1,
+ "raw_rows": 3475226,
+ "clean_rows": 3241461,
+ "rules": {
+  "R1 Pickup di luar bulan data": 22,
+  "R2 Dropoff <= pickup": 2051,
+  "R3 Durasi < 1 menit": 38060,
+  "R4 Durasi > 180 menit": 1377,
+  "R5 Jarak <= 0 mil atau > 100 mil": 64507,
+  "R6 Kecepatan rata-rata > 80 mph": 185,
+  "R7 Tarif/total <= 0 atau fare > 500 USD": 127563
+ },
+ "source": "data contoh (laporan)"
+}

@@ -1,0 +1,3 @@
+# Tambahan untuk 03_ml_spark.py. Butuh Java 17 (cek: java -version).
+# Python 3.10-3.11: pyspark 3.5.x. Python 3.12+: pyspark 4.x. Biarkan pip memilih:
+pyspark>=3.5,<4.0
